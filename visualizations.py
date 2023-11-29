@@ -8,13 +8,21 @@ Created on Tue Nov 21 10:24:20 2023
 #%%
 
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from fredapi import Fred
 
 #statsmodels
+import statsmodels.api as sm 
 
 #kaxamodules
-from src.Modules import kaxa_funcs as kf
+import src.Modules.kaxa_funcs as kf
+import src.Modules.kaxa_plots as kp
 
 #plotly
+import plotly.express as px
+import plotly.io as pio
+import plotly.graph_objs as go
 
 #%%
 
@@ -76,8 +84,48 @@ df3 = lag_df.dropna()
 
 #%%
 
+df3['inflation'] = df3['cpi'].pct_change(12).mul(100)
+
+#%%
+
 df_spy = pd.read_csv('inputs/SPY.csv').set_index('Date')
 
 df_spy.index = pd.to_datetime(df_spy.index)
 
 df4 = pd.concat([df, df_spy['Adj Close']], axis = 1)
+
+#%%
+
+kp.time_series_plot(df, df_spy['Adj Close'], title = 'GDP vs SPY', file = 'gdp_vs_spy')
+
+#%%
+for i in df1.columns:
+    
+    kp.time_series_plot(df, df1[i], title = f'GDP vs {i}', file = f'gdp_vs_{i}')
+
+#%%
+
+for i in df2.columns:
+    
+    kp.time_series_plot(df, df2[i], title = f'GDP vs {i}', file = f'gdp_vs_{i}')
+    
+#%%
+
+for i in df3.columns:
+    
+    kp.time_series_plot(df, df3[i], title = f'GDP vs {i}', file = f'gdp_vs_{i}')
+
+#%%
+kp.time_series_plot(df, df1['2_years_yield'], title = 'GDP vs 2YY', file = 'gdp_vs_2yy', stand = False)
+kp.time_series_plot(df, df1['reference_interest_rate'], title = 'GDP vs FFER', file = 'gdp_vs_ffer', stand = False)
+
+#%%
+
+kp.time_series_plot(
+    df, 
+    df1['reference_interest_rate'], 
+    df1['2_years_yield'],
+    title = 'GDP vs FFER vs 2YY', 
+    file = 'gdp_vs_ffervs2yy', 
+    stand = False
+    )
