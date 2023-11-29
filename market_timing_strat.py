@@ -124,100 +124,83 @@ strat_df['stock_cum'] = 0
 
 #%%
 
-strat_df['buy_signal'] = np.where((strat_df['strategy_sign'] == 1), 1, 0)
+strat_df['buy_stocks'] = np.where((strat_df['strategy_sign'] == 1), 1, 0)
 
-strat_df['total_stocks'] = strat_df['buy_signal'].cumsum()
+strat_df['total_stocks'] = strat_df['buy_stocks'].cumsum()
 
 
 #%%
 
-total_shares = strat_df['buy_signal'].sum()
+total_shares = strat_df['buy_stocks'].sum()
 
-shares_per_year = strat_df['buy_signal'].sum()/((strat_df.index[-1]-strat_df.index[0]).days/365)
+shares_per_year = strat_df['buy_stocks'].sum()/((strat_df.index[-1]-strat_df.index[0]).days/365)
 
 print(f'Compras {shares_per_year:.2f} por año en {((strat_df.index[-1]-strat_df.index[0]).days/365): .1f} años, para un total de {total_shares}')
 
 #%%
 
-stocks = 1
+df_spy_daily = pd.concat([df_spy_daily['Adj Close'], strat_df[['buy_stocks','total_stocks', 'strategy_sign']]], axis = 1)
+df_spy_daily['total_stocks'] = df_spy_daily['total_stocks'].fillna(method = 'ffill')
+df_spy_daily['buy_stocks'] = df_spy_daily['buy_stocks'].fillna(0)
+df_spy_daily['strategy_sign'] = df_spy_daily['strategy_sign'].fillna(0)
+"1997-07-31"
+df_spy_daily['Adj Close'] = df_spy_daily['Adj Close'].fillna(method='bfill')
+df_spy_daily.dropna(inplace = True)
 
-for i in range(1, len(df)):
+df_spy_daily['portfolio_value'] = df_spy_daily['total_stocks'] * df_spy_daily['Adj Close']
 
-    strat_df.iloc[i, 9] = stocks * strat_df.iloc[i, 7] + strat_df.iloc[i - 1, 9]
 
-    if strat_df.iloc[i, 9] < 0:
-        strat_df.iloc[i, 9] = strat_df.iloc[i, 9] + stocks
+#%%
+initial_investment = df_spy_daily.loc[df_spy_daily['strategy_sign']==1, 'Adj Close'].sum()
+ending_value = df_spy_daily.iloc[-1, 4]
 
-    else:
-        pass
+total_ret = ending_value/initial_investment
 
-    if strat_df.iloc[i, 9] > 1:
-        strat_df.iloc[i, 9] = strat_df.iloc[i, 9] - stocks
+an_ret = (total_ret ** (252/df_spy_daily.shape[0]))-1
 
-    else:
-        pass
+print(f'total annual return: {an_ret: .4%}')
+
+#%%
+
+def string_formater(string):
+    return str(string).split(' ')[0]
+buy_stock_dates = pd.bdate_range(start=string_formater(df_spy_daily.index[0]),
+                                end= string_formater(df_spy_daily.index[-1]),
+                                freq= 'AS')
+len(buy_stock_dates)
+
+offset_dates = []
+for date in buy_stock_dates:
+    next_business_day = pd.bdate_range(date, periods=2, freq='BMS')[-1]
+    offset_dates.append(next_business_day)
+
+# offset_dates = [string_formater(i) for i in offset_dates]
+# buy_stock_dates = pd.date_range(start=string_formater(df_spy_daily.index[0]),
+#                                 end= string_formater(df_spy_daily.index[-1]),
+#                                 periods=10)
+df_spy_daily.loc[offset_dates, 'periodic_strat_signal'] = 1
+df_spy_daily['periodic_strat_signal'] = df_spy_daily['periodic_strat_signal'].fillna(0)
+df_spy_daily['periodic_strat_pf'] = df_spy_daily['periodic_strat_signal'].cumsum()
+df_spy_daily['periodic_strat_pf'] = df_spy_daily['periodic_strat_pf'].fillna(method='ffill')
+
+df_spy_daily['periodic_strat_portval'] = df_spy_daily['periodic_strat_pf'] * df_spy_daily['Adj Close']
+
+
+
+initial_investment_per = df_spy_daily.loc[df_spy_daily['periodic_strat_signal']==1, 'Adj Close'].sum()
+ending_value_per = df_spy_daily.iloc[-1, 7]
+
+total_ret_per = ending_value_per/initial_investment_per
+
+an_ret_per = (total_ret_per ** (252/df_spy_daily.shape[0]))-1
+
+
+print(f'total annual return: {an_ret: .4%}')
+print(f'total annual return: {an_ret_per: .4%}')
+
 
 #%%
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# %%
-
-df_strat = pd.concat([df_spy_daily['Adj Close'], df['stock_cum']], axis=1).rename(columns={'Adj Close': 'adj_close'})
-
-df_strat = df_strat.fillna(method='bfill').dropna()
-
-# %%
-
-df_strat['stock_vol'] = df_strat['adj_close'] * df_strat['stock_cum']
-
-df_strat['stock_vol'] = df_strat['stock_vol'].replace(0, np.nan)
-
-# %%
-
-df_strat['port_ret'] = np.nan
-
-for i in range(1, len(df_strat)):
-
-    if not np.isnan(df_strat.iloc[i, 2]):
-        df_strat.iloc[i, 3] = (df_strat.iloc[i, 2] / df_strat.iloc[i - 1, 2]) - 1
-
-    else:
-        pass
-
-# df_strat['port_ret'] = df_strat['port_ret'].fillna(method='ffill')
-
-# %%
-
-df_strat['group'] = (df_strat['stock_vol'].isnull() & df_strat['stock_vol'].shift(fill_value=False)).cumsum()
-
-for i in range(len(df_strat)):
-
-    if pd.isna(df_strat.iloc[i, 2]):
-        df_strat.iloc[i, 4] = np.nan
-    else:
-        pass
-
-# %%
-
-yields = df_strat.groupby('group')['stock_vol'].apply(kf.yields_calculation)
-
-# %%
-
-strat_return = yields.prod()
-
-bench_yield = df_strat['adj_close'].iloc[-1] / df_strat['adj_close'].iloc[0]
