@@ -9,7 +9,6 @@ Created on Mon Nov  6 20:31:15 2023
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from fredapi import Fred
 
 #statsmodels
@@ -129,63 +128,25 @@ def detrending(
         y: pd.Series(),
         ):
     
-    Y = y
-    
-    trend = pd.Series(np.arange(1, len(Y)+1), index = Y.index)
-    
-    X1 = pd.DataFrame(
-        {
-            "trend" : trend
-         }
-        )
-    
-    X2 = pd.DataFrame(
-        {
-            "trend" : trend,
-            "trend_sq" : trend**2
-         }
-        )
-    
-    X3 = pd.DataFrame(
-        {
-            "trend" : trend,
-            "trend_sq" : trend**2,
-            "trend_cb" : trend**3
-         }
-        )
-    
-    model1 = sm.OLS(
-        Y,
-        sm.add_constant(X1)
-        )
-    
-    results1 = model1.fit()
-    
-    model2 = sm.OLS(
-        Y,
-        sm.add_constant(X2)
-        )
-    
-    results2 = model2.fit()
-    
-    model3 = sm.OLS(
-        Y,
-        sm.add_constant(X3)
-        )
-    
-    results3 = model3.fit()
-    
-    if results1.aic <= results2.aic and results1.aic <= results3.aic:
-        print(results1.summary())
-        return results1.resid
-    
-    elif results2.aic <= results1.aic and results2.aic <= results3.aic:
-        print(results2.summary())
-        return results2.resid
-    
-    else:
-        print(results3.summary())
-        return results3.resid
+    Y = y.dropna()
+    trend = pd.Series(np.arange(1, len(Y) + 1), index=Y.index)
+
+    models = [
+        sm.OLS(Y, sm.add_constant(np.ones_like(Y))),
+        sm.OLS(Y, sm.add_constant(trend)),
+        sm.OLS(Y, sm.add_constant(pd.DataFrame({"trend": trend, "trend_sq": trend**2}))),
+        sm.OLS(Y, sm.add_constant(pd.DataFrame({"trend": trend, "trend_sq": trend**2, "trend_cb": trend**3}))),
+    ]
+
+    results = [model.fit() for model in models]
+    aics = [result.aic for result in results]
+
+    best_model_index = np.argmin(aics)
+    best_model = models[best_model_index]
+    best_result = results[best_model_index]
+
+    print(best_result.summary())
+    return best_result.resid
         
 #%%
 
